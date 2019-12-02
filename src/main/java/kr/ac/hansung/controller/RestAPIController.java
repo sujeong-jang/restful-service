@@ -2,10 +2,13 @@ package kr.ac.hansung.controller;
 
 import java.util.List;
 
+import javax.servlet.http.HttpServletRequest;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,6 +16,9 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import kr.ac.hansung.exception.ErrorResponse;
+import kr.ac.hansung.exception.UserDuplicatedException;
+import kr.ac.hansung.exception.UserNotFoundException;
 import kr.ac.hansung.model.User;
 import kr.ac.hansung.service.UserService;
 
@@ -43,7 +49,7 @@ public class RestAPIController {
 		
 		User user = userService.findById(id);
 		if (user == null) {
-			
+			throw new UserNotFoundException(id);
 		}
 		//사용자 정보가 존재한다면 body에 user정보와 http status에는 ok를 넣어서 넘겨줌
 		return new ResponseEntity<User>(user, HttpStatus.OK);
@@ -58,8 +64,7 @@ public class RestAPIController {
 			UriComponentsBuilder ucBuilder){ //사용자의 uri header에 담기위해 사용
 		
 		if(userService.isUserExist(user)) {
-			
-			
+			throw new UserDuplicatedException(user.getName());
 		}
 		
 		userService.saveUser(user);
@@ -81,7 +86,7 @@ public class RestAPIController {
 		User currentUser = userService.findById(id);
 		
 		if(currentUser == null) {
-			
+			throw new UserNotFoundException(id);
 		}
 		
 		currentUser.setName(user.getName());
@@ -101,7 +106,7 @@ public class RestAPIController {
 		
 		User user = userService.findById(id);
 		if(user == null) {
-			
+			throw new UserNotFoundException(id);
 		}
 		
 		userService.deleteUserById(id);
@@ -119,4 +124,32 @@ public class RestAPIController {
 		return new ResponseEntity<User>(HttpStatus.NO_CONTENT);
 	}
 	
+	@ExceptionHandler(UserNotFoundException.class)
+	public ResponseEntity<ErrorResponse> 
+		handleUserNotFoundException(HttpServletRequest req, UserNotFoundException ex) {
+		
+		String requestURL = req.getRequestURI().toString();
+		
+		ErrorResponse errorResponse = new ErrorResponse();
+		errorResponse.setRequestURL(requestURL);
+		errorResponse.setErrorCode("user.notfound.exception");
+		errorResponse.setErrorMsg("User with id" + ex.getUserId() + " not found");
+		
+		return new ResponseEntity<ErrorResponse>(errorResponse, HttpStatus.NOT_FOUND);
+	}
+	
+	@ExceptionHandler(UserDuplicatedException.class)
+	public ResponseEntity<ErrorResponse> 
+		handleUserDuplicatedException(HttpServletRequest req, UserDuplicatedException ex) {
+		
+		String requestURL = req.getRequestURI().toString();
+		
+		ErrorResponse errorResponse = new ErrorResponse();
+		errorResponse.setRequestURL(requestURL);
+		errorResponse.setErrorCode("user.duplicated.exception");
+		errorResponse.setErrorMsg("Unabled to create. A user with name" + ex.getUserName() + 
+				"already exist" );
+		
+		return new ResponseEntity<ErrorResponse>(errorResponse, HttpStatus.CONFLICT);
+	}
 }
